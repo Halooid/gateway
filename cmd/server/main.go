@@ -9,33 +9,34 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/halooid/backend/go-shared/auth"
+	"google.golang.org/grpc"
+
+	authv1 "github.com/halooid/gateway/gen/go/auth/v1"
+	"github.com/halooid/gateway/internal/handler"
 )
 
 func main() {
-	// Configuration
-	issuerURL := os.Getenv("OIDC_ISSUER_URL")
-	jwksURL := os.Getenv("OIDC_JWKS_URL")
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
 	}
 
-	if issuerURL == "" || jwksURL == "" {
-		log.Fatal("OIDC_ISSUER_URL and OIDC_JWKS_URL are required")
+	// gRPC Connections
+	authSvcAddr := os.Getenv("AUTH_SERVICE_ADDR")
+	if authSvcAddr == "" {
+		authSvcAddr = "localhost:50051"
 	}
 
-	// Initialize Auth Validator (OIDC/JWKS)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	validator, err := auth.NewValidator(ctx, jwksURL, 1*time.Hour)
+	authConn, err := grpc.Dial(authSvcAddr, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("failed to initialize auth validator: %v", err)
+		log.Fatalf("Failed to connect to auth service: %v", err)
 	}
+	defer authConn.Close()
+
+	authClient := authv1.NewAuthServiceClient(authConn)
+	authHandler := handler.NewAuthHandler(authClient)
 
 	// Middleware & Routing
-	authMiddleware := auth.Middleware(validator)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -43,10 +44,10 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// Placeholder for API routing
-	// apiMux := http.NewServeMux()
-	// Register gRPC client handlers here...
-	// mux.Handle("/api/v1/", authMiddleware(apiMux))
+	// Auth Routes
+	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("/api/v1/auth/refresh", authHandler.RefreshToken)
+	mux.HandleFunc("/api/v1/auth/validate", authHandler.ValidateToken)
 
 	server := &http.Server{
 		Addr:    ":" + port,
