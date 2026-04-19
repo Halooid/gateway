@@ -46,6 +46,8 @@ func main() {
 
 	// Auth Routes
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("/api/v1/auth/register", authHandler.Register)
+	mux.HandleFunc("/api/v1/auth/me", authHandler.Me)
 	mux.HandleFunc("/api/v1/auth/refresh", authHandler.RefreshToken)
 	mux.HandleFunc("/api/v1/auth/validate", authHandler.ValidateToken)
 
