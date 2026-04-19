@@ -16,9 +16,15 @@ func NewAuthHandler(client authv1.AuthServiceClient) *AuthHandler {
 	return &AuthHandler{client: client}
 }
 
+func (h *AuthHandler) respondWithError(w http.ResponseWriter, message string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -28,7 +34,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -37,7 +43,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Password: req.Password,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -47,7 +53,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -56,7 +62,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -64,7 +70,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		RefreshToken: req.RefreshToken,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -74,7 +80,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -83,7 +89,7 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -91,7 +97,7 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 		AccessToken: req.AccessToken,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -101,28 +107,32 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Username  string `json:"username"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	resp, err := h.client.Register(r.Context(), &authv1.RegisterRequest{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: req.Password,
+		Username:  req.Username,
+		Email:     req.Email,
+		Password:  req.Password,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -141,7 +151,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.client.GetCurrentUser(ctx, &authv1.GetCurrentUserRequest{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		h.respondWithError(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
