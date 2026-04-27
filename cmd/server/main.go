@@ -10,8 +10,11 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	authv1 "github.com/halooid/gateway/gen/go/auth/v1"
+	lookupv1 "github.com/halooid/gateway/gen/go/lookup/v1"
+	splixv1 "github.com/halooid/gateway/gen/go/splix/v1"
 	"github.com/halooid/gateway/internal/handler"
 )
 
@@ -27,14 +30,44 @@ func main() {
 		authSvcAddr = "localhost:50051"
 	}
 
-	authConn, err := grpc.Dial(authSvcAddr, grpc.WithInsecure())
+	lookupSvcAddr := os.Getenv("LOOKUP_SERVICE_ADDR")
+	if lookupSvcAddr == "" {
+		lookupSvcAddr = "localhost:50052"
+	}
+
+	splixSvcAddr := os.Getenv("SPLIX_SERVICE_ADDR")
+	if splixSvcAddr == "" {
+		splixSvcAddr = "localhost:50053"
+	}
+
+	authConn, err := grpc.NewClient(authSvcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to auth service: %v", err)
 	}
 	defer authConn.Close()
 
+	lookupConn, err := grpc.NewClient(lookupSvcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to lookup service: %v", err)
+	}
+	defer lookupConn.Close()
+
+	splixConn, err := grpc.NewClient(splixSvcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to splix service: %v", err)
+	}
+	defer splixConn.Close()
+
 	authClient := authv1.NewAuthServiceClient(authConn)
 	authHandler := handler.NewAuthHandler(authClient)
+
+	lookupClient := lookupv1.NewLookupServiceClient(lookupConn)
+	lookupHandler := handler.NewLookupHandler(lookupClient)
+
+	splixUserClient := splixv1.NewUserServiceClient(splixConn)
+	splixGroupClient := splixv1.NewGroupServiceClient(splixConn)
+	splixExpenseClient := splixv1.NewExpenseServiceClient(splixConn)
+	splixHandler := handler.NewSplixHandler(splixUserClient, splixGroupClient, splixExpenseClient)
 
 	// Middleware & Routing
 	mux := http.NewServeMux()
@@ -50,6 +83,34 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/me", authHandler.Me)
 	mux.HandleFunc("/api/v1/auth/refresh", authHandler.RefreshToken)
 	mux.HandleFunc("/api/v1/auth/validate", authHandler.ValidateToken)
+
+	// Lookup Routes
+	mux.HandleFunc("/api/v1/lookup", lookupHandler.GetLookupValues)
+
+	// Splix Routes
+	mux.HandleFunc("/api/v1/splix/users", splixHandler.CreateUser)
+	mux.HandleFunc("/api/v1/splix/connections", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			splixHandler.AddConnection(w, r)
+		} else {
+			splixHandler.ListConnections(w, r)
+		}
+	})
+	mux.HandleFunc("/api/v1/splix/groups", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			splixHandler.CreateGroup(w, r)
+		} else {
+			splixHandler.ListGroups(w, r)
+		}
+	})
+	mux.HandleFunc("/api/v1/splix/expenses", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			splixHandler.AddExpense(w, r)
+		} else {
+			splixHandler.GetExpenses(w, r)
+		}
+	})
+	mux.HandleFunc("/api/v1/splix/balances", splixHandler.GetBalances)
 
 	server := &http.Server{
 		Addr:    ":" + port,
