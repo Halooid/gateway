@@ -22,62 +22,6 @@ func (h *AuthHandler) respondWithError(w http.ResponseWriter, message string, co
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.Login(r.Context(), &authv1.LoginRequest{
-		Username: req.Username,
-		Password: req.Password,
-	})
-	if err != nil {
-		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.RefreshToken(r.Context(), &authv1.RefreshTokenRequest{
-		RefreshToken: req.RefreshToken,
-	})
-	if err != nil {
-		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
 func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -95,41 +39,6 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.client.ValidateToken(r.Context(), &authv1.ValidateTokenRequest{
 		AccessToken: req.AccessToken,
-	})
-	if err != nil {
-		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.respondWithError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Username  string `json:"username"`
-		Email     string `json:"email"`
-		Password  string `json:"password"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.client.Register(r.Context(), &authv1.RegisterRequest{
-		Username:  req.Username,
-		Email:     req.Email,
-		Password:  req.Password,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
 	})
 	if err != nil {
 		h.respondWithError(w, err.Error(), http.StatusInternalServerError)
